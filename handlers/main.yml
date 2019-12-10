@@ -1,0 +1,11 @@
+---
+# handlers file for squid
+- name: check squid configuration
+  command: squid -k parse
+  changed_when: no
+
+- name: restart squid
+  become: true
+  service:
+    name: squid
+    state: restarted

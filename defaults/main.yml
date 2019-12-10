@@ -1,0 +1,116 @@
+---
+# defaults file for squid
+
+# Common configuration
+# --------------------
+squid_cache_mgr: squid@example.com
+squid_http_port: 3128
+squid_error_default_language: en
+
+# Access list definition
+# ----------------------
+
+# List of access lists
+squid_acl_list:
+  # Example of SOURCE acl
+  - name: localnet
+    type: src                # fast
+    args:
+     - 192.168.0.0/16        # RFC1918 possible internal network
+     - 172.16.0.0/12         # RFC1918 possible internal network
+     - 10.0.0.0/8            # RFC1918 possible internal network
+     - 127.0.0.1/32          # Localhost
+
+  # Example of DESTINATION acl
+  # - name: to_localnet
+  #   type: dst                # slow
+  #   args:
+  #    - 192.168.0.0/16        # RFC1918 possible internal network
+  #    - 172.16.0.0/12         # RFC1918 possible internal network
+  #    - 10.0.0.0/8            # RFC1918 possible internal network
+  #    - 127.0.0.1/32          # Localhost
+
+  # The following is an ACL definition to fix some issues
+  # when downloading files from debian repositories
+  # in conjunction with the squid_cache_list variable
+  # - name: denygpg
+  #   type: urlpath_regex
+  #   args:
+  #     - \.gpg
+
+# Access control 
+# --------------
+
+# List of ACLs allowed or denied access to the proxy
+squid_http_access_rules:
+  - permission: allow
+    aclname: localnet
+
+# Those are the default safe ports in a fresh squid installation.
+# Customize as you see fit.
+squid_acl_safe_ports:
+  - 80           # http
+  - 21           # ftp
+  - 443          # https
+  - 70           # gopher
+  - 210          # wais
+  - 1025-65535   # unregistered ports
+  - 280          # http-mgmt
+  - 488          # gss-http
+  - 591          # filemaker
+  - 777          # multiling http
+
+# Default ssl ports.
+squid_acl_ssl_ports:
+  - 443       # https
+
+# Cache control
+# -------------
+
+# Directory size. Will be included in the 'cache_dir' directive
+# Unit is MB, the following definition sets it to 256 MB.
+# squid_cache_dir_size: 256
+# Maximum size of an object
+squid_maximum_object_size: 4 MB
+
+# Additional 'cache' directive
+squid_cache_list: []
+# Explicitely denies caching of the following acl
+#  - acl: denygpg
+#    rule: deny
+
+# Cache peer control
+# ------------------
+
+# Cache peers definition
+squid_cache_peers: []
+#  - hostname: 1.2.3.4
+#    type: parent # default value in jinja template : parent
+#    proxy_port: 80 # default value in jinja template : 80
+#    icp_port: 0 # default value in jinja template : 0
+#    options: default # default value in jinja template : default
+#    # example with login (set in your secrets) and some other options
+#    # options: login=LOGIN:PASSWORD no-query no-digest no-netdb-exchange
+
+# List of cache_peer with the ACL allowed or denied to use the cache peer
+squid_cache_peer_access_rules: []
+  # - hostname: 1.2.3.4
+  #   permission: allow
+  #   aclname: localnet
+  # - hostname: 1.2.3.4
+  #   permission: deny
+  #   aclname: direct-servers
+
+# prevent any cache_peer being used for requests matching the acls
+squid_always_direct_rules: []
+  # - permission: allow
+  #   aclname: to_localnet
+  # - permission: allow
+  #   aclname: direct-servers
+
+squid_never_direct_rules: []
+  # - permission: allow
+  #   aclname: all
+
+# TODO (not yet used)
+squid_deny_request_header_access: []

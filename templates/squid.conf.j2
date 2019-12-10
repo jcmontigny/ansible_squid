@@ -1,0 +1,1830 @@
+# Squid configuration for l'entrepôt - v2 - point
+#
+# Squid version 3.5.23
+#
+# Template derived from default file installed on the debian 9 distribution
+# Expunged from documentation.
+#
+# Official doc : http://www.squid-cache.org/Doc/config/
+# Examples :     http://wiki.squid-cache.org/ConfigExamples
+#	
+
+# OPTIONS FOR SMP
+# -----------------------------------------------------------------------------
+
+#	Number of main Squid processes or "workers" to fork and maintain.
+#Default: SMP support disabled. (value = 1)
+workers {{ ansible_processor_vcpus }}
+
+#  TAG: cpu_affinity_map
+#	Usage: cpu_affinity_map process_numbers=P1,P2,... cores=C1,C2,...
+# Default: Let operating system decide.
+
+# OPTIONS FOR AUTHENTICATION
+# -----------------------------------------------------------------------------
+
+#  TAG: auth_param
+#Default: none
+
+#  TAG: authenticate_cache_garbage_interval
+#Default:
+# authenticate_cache_garbage_interval 1 hour
+
+#  TAG: authenticate_ttl
+#Default:
+# authenticate_ttl 1 hour
+
+#  TAG: authenticate_ip_ttl
+#Default:
+# authenticate_ip_ttl 1 second
+
+# ACCESS CONTROLS
+# -----------------------------------------------------------------------------
+
+#  TAG: external_acl_type
+#Default:
+# none
+
+#  TAG: acl
+#	   acl aclname acltype argument ...
+#	   acl aclname acltype "file" ...
+#Default:
+# ACLs all, manager, localhost, and to_localhost are predefined.
+
+# Ports
+{% for port in squid_acl_ssl_ports %}
+acl SSL_ports port {{ port }}
+{% endfor %}
+{% for port in squid_acl_safe_ports %}
+acl Safe_ports port {{ port }}
+{% endfor %}
+
+# acls
+{% for acl in squid_acl_list %}
+{% for arg in acl.args %}
+acl {{ acl.name }} {{ acl.type }} {{ arg }}
+{% endfor %}
+{% endfor %}
+
+acl CONNECT method CONNECT
+
+#  TAG: proxy_protocol_access
+#Default:
+# all TCP connections to ports with require-proxy-header will be denied
+
+#  TAG: follow_x_forwarded_for
+#Default:
+# X-Forwarded-For header will be ignored.
+
+#  TAG: acl_uses_indirect_client	on|off
+#Default:
+# acl_uses_indirect_client on
+
+#  TAG: delay_pool_uses_indirect_client	on|off
+#Default:
+# delay_pool_uses_indirect_client on
+
+#  TAG: log_uses_indirect_client	on|off
+#Default:
+# log_uses_indirect_client on
+
+#  TAG: tproxy_uses_indirect_client	on|off
+#Default:
+# tproxy_uses_indirect_client off
+
+#  TAG: spoof_client_ip
+#Default:
+# Allow spoofing on all TPROXY traffic.
+
+#  TAG: http_access
+#	http_access allow|deny [!]aclname ...
+#	If there are no "access" lines present, the default is to deny
+#	the request.
+#	See http://wiki.squid-cache.org/SquidFaq/SquidAcl for details.
+#
+#	If none of the "access" lines cause a match, the default is the
+#	opposite of the last line in the list.  If the last line was
+#	deny, the default is allow.  Conversely, if the last line
+#	is allow, the default will be deny.  For these reasons, it is a
+#	good idea to have an "deny all" entry at the end of your access
+#	lists to avoid potential confusion.
+#Default:
+# Deny, unless rules exist in squid.conf.
+#
+
+# Recommended minimum Access Permission configuration:
+# Deny requests to certain unsafe ports
+http_access deny !Safe_ports
+
+# Deny CONNECT to other than secure SSL ports
+http_access deny CONNECT !SSL_ports
+
+# Only allow cachemgr access from localhost
+http_access allow localhost manager
+http_access deny manager
+
+# We strongly recommend the following be uncommented to protect innocent
+# web applications running on the proxy server who think the only
+# one who can access services on "localhost" is a local user
+http_access deny to_localhost
+
+#
+# INSERT YOUR OWN RULE(S) HERE TO ALLOW ACCESS FROM YOUR CLIENTS
+#
+{% for access in squid_http_access_rules %}
+http_access {{ access.permission }} {{ access.aclname }}
+{%  endfor %}
+
+# Example rule allowing access from your local networks.
+# Adapt localnet in the ACL section to list your (internal) IP networks
+# from where browsing should be allowed
+# http_access allow localnet # already set in the defaults variable of the ansible role
+http_access allow localhost
+
+# And finally deny all other access to this proxy
+http_access deny all
+
+#  TAG: adapted_http_access
+#	If not set then only http_access is used.
+#Default:
+# Allow, unless rules exist in squid.conf.
+
+#  TAG: http_reply_access
+#Default:
+# Allow, unless rules exist in squid.conf.
+
+#  TAG: icp_access
+## Allow ICP queries from local networks only
+##icp_access allow localnet
+##icp_access deny all
+#Default:
+# Deny, unless rules exist in squid.conf.
+
+
+#  TAG: htcp_access
+## Allow HTCP queries from local networks only
+##htcp_access allow localnet
+##htcp_access deny all
+#Default:
+# Deny, unless rules exist in squid.conf.
+
+#  TAG: htcp_clr_access
+## Allow HTCP CLR requests from trusted peers
+#acl htcp_clr_peer src 192.0.2.2 2001:DB8::2
+#htcp_clr_access allow htcp_clr_peer
+#htcp_clr_access deny all
+#Default:
+# Deny, unless rules exist in squid.conf.
+
+#  TAG: miss_access
+#Default:
+# Allow, unless rules exist in squid.conf.
+
+#  TAG: ident_lookup_access
+#Default:
+# Unless rules exist in squid.conf, IDENT is not fetched.
+
+#  TAG: reply_body_max_size	size [acl acl...]
+##		reply_body_max_size SIZE UNITS [acl ...]
+#		reply_body_max_size 10 MB
+#Default:
+# No limit is applied.
+
+# NETWORK OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: http_port
+#	Usage:	port [mode] [options]
+#		hostname:port [mode] [options]
+#		1.2.3.4:port [mode] [options]
+# Squid normally listens to port 3128
+http_port {{ squid_http_port }}
+
+#  TAG: https_port
+#	Usage:  [ip:]port cert=certificate.pem [key=key.pem] [mode] [options...]
+#Default:
+# none
+
+#  TAG: ftp_port
+#	Usage: ftp_port address [mode] [options]
+#Default:
+# none
+
+#  TAG: tcp_outgoing_tos
+#	tcp_outgoing_tos ds-field [!]aclname ...
+##	acl normal_service_net src 10.0.0.0/24
+##	acl good_service_net src 10.0.1.0/24
+##	tcp_outgoing_tos 0x00 normal_service_net
+##	tcp_outgoing_tos 0x20 good_service_net
+#Default:
+# none
+
+#  TAG: clientside_tos
+#	clientside_tos ds-field [!]aclname ...
+##	acl normal_service_net src 10.0.0.0/24
+##	acl good_service_net src 10.0.1.0/24
+##	clientside_tos 0x00 normal_service_net
+##	clientside_tos 0x20 good_service_net
+#Default:
+# none
+
+#  TAG: tcp_outgoing_mark
+#	tcp_outgoing_mark mark-value [!]aclname ...
+##	acl normal_service_net src 10.0.0.0/24
+##	acl good_service_net src 10.0.1.0/24
+##	tcp_outgoing_mark 0x00 normal_service_net
+##	tcp_outgoing_mark 0x20 good_service_net
+#Default:
+# none
+
+#  TAG: clientside_mark
+#	clientside_mark mark-value [!]aclname ...
+##	acl normal_service_net src 10.0.0.0/24
+##	acl good_service_net src 10.0.1.0/24
+##	clientside_mark 0x00 normal_service_net
+##	clientside_mark 0x20 good_service_net
+#Default:
+# none
+
+#  TAG: qos_flows
+#Default:
+# none
+
+#  TAG: tcp_outgoing_address
+#	tcp_outgoing_address ipaddr [[!]aclname] ...
+##	  acl normal_service_net src 10.0.0.0/24
+##	  acl good_service_net src 10.0.2.0/24
+##	  tcp_outgoing_address 2001:db8::c001 good_service_net
+##	  tcp_outgoing_address 10.1.0.2 good_service_net
+##	  tcp_outgoing_address 2001:db8::beef normal_service_net
+##	  tcp_outgoing_address 10.1.0.1 normal_service_net
+##	  tcp_outgoing_address 2001:db8::1
+##	  tcp_outgoing_address 10.1.0.3
+#Default:
+# Address selection is performed by the operating system.
+
+#  TAG: host_verify_strict
+#Default:
+# host_verify_strict off
+
+#  TAG: client_dst_passthru
+#Default:
+# client_dst_passthru on
+
+# SSL OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: ssl_unclean_shutdown
+#Default:
+# ssl_unclean_shutdown off
+
+#  TAG: ssl_engine
+#Default:
+# none
+
+#  TAG: sslproxy_client_certificate
+#Default:
+# none
+
+#  TAG: sslproxy_client_key
+#Default:
+# none
+
+#  TAG: sslproxy_version
+#Default:
+# automatic SSL/TLS version negotiation
+
+#  TAG: sslproxy_options
+#Default:
+# none
+
+#  TAG: sslproxy_cipher
+#Default:
+# none
+
+#  TAG: sslproxy_cafile
+#Default:
+# none
+
+#  TAG: sslproxy_capath
+#Default:
+# none
+
+#  TAG: sslproxy_session_ttl
+#Default:
+# sslproxy_session_ttl 300
+
+#  TAG: sslproxy_session_cache_size
+#Default:
+# sslproxy_session_cache_size 2 MB
+
+#  TAG: sslproxy_foreign_intermediate_certs
+#Default:
+# none
+
+#  TAG: sslproxy_cert_sign_hash
+#Default:
+# none
+
+#  TAG: ssl_bump
+#	ssl_bump <action> [!]acl ...
+#	# Example: Bump all TLS connections except those originating from
+#	# localhost or those going to example.com.
+#	acl broken_sites ssl::server_name .example.com
+#	ssl_bump splice localhost
+#	ssl_bump splice broken_sites
+#	ssl_bump bump all
+#Default:
+# Become a TCP tunnel without decrypting proxied traffic.
+
+#  TAG: sslproxy_flags
+#Default:
+# none
+
+#  TAG: sslproxy_cert_error
+#	Use this ACL to bypass server certificate validation errors.
+#	For example, the following lines will bypass all validation errors
+#	when talking to servers for example.com. All other
+#	validation errors will result in ERR_SECURE_CONNECT_FAIL error.
+#		acl BrokenButTrustedServers dstdomain example.com
+#		sslproxy_cert_error allow BrokenButTrustedServers
+#		sslproxy_cert_error deny all
+#
+#Default:
+# Server certificate errors terminate the transaction.
+
+#  TAG: sslproxy_cert_sign
+#        sslproxy_cert_sign <signing algorithm> acl ...
+#Default:
+# none
+
+#  TAG: sslproxy_cert_adapt
+#	sslproxy_cert_adapt <adaptation algorithm> acl ...
+#Default:
+# none
+
+#  TAG: sslpassword_program
+#Default:
+# none
+
+# OPTIONS RELATING TO EXTERNAL SSL_CRTD 
+# -----------------------------------------------------------------------------
+
+#  TAG: sslcrtd_program
+#	/usr/lib/squid/ssl_crtd program requires -s and -M parameters
+#	For more information use:
+#		/usr/lib/squid/ssl_crtd -h
+#Default:
+# sslcrtd_program /usr/lib/squid/ssl_crtd -s /var/lib/ssl_db -M 4MB
+
+#  TAG: sslcrtd_children
+#Default:
+# sslcrtd_children 32 startup=5 idle=1
+
+#  TAG: sslcrtvalidator_program
+#	Usage:  sslcrtvalidator_program [ttl=n] [cache=n] path ...
+#	Options:
+#	  ttl=n         TTL in seconds for cached results. The default is 60 secs
+#	  cache=n       limit the result cache size. The default value is 2048
+#Default:
+# none
+
+#  TAG: sslcrtvalidator_children
+#Default:
+# sslcrtvalidator_children 32 startup=5 idle=1 concurrency=1
+
+# OPTIONS WHICH AFFECT THE NEIGHBOR SELECTION ALGORITHM
+# -----------------------------------------------------------------------------
+
+#  TAG: cache_peer
+#		cache_peer hostname type http-port icp-port [options]
+#Default:
+# none
+
+{% for peer in squid_cache_peers %}
+cache_peer {{ peer.hostname }} {{ peer.type|default('parent') }} {{ peer.proxy_port|default('80') }} {{ peer.icp_port|default(0) }} {{ peer.options|default('default') }}
+{% endfor %}
+
+#  TAG: cache_peer_domain
+#		cache_peer_domain cache-host domain [domain ...]
+#		cache_peer_domain cache-host !domain
+#Default:
+# none
+
+#  TAG: cache_peer_access
+#		cache_peer_access peer-name allow|deny [!]aclname ...
+#Default:
+# No peer usage restrictions.
+
+{% for peer in squid_cache_peer_access_rules %}
+cache_peer_access {{ peer.hostname }} {{ peer.permission }} {{ peer.aclname }}
+{% endfor %}
+
+#  TAG: neighbor_type_domain
+#Default:
+# The peer type from cache_peer directive is used for all requests to that peer.
+
+#  TAG: dead_peer_timeout	(seconds)
+#Default:
+# dead_peer_timeout 10 seconds
+
+#  TAG: forward_max_tries
+#Default:
+# forward_max_tries 25
+
+# MEMORY CACHE OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: cache_mem	(bytes)
+#Default:
+# cache_mem 256 MB
+
+#  TAG: maximum_object_size_in_memory	(bytes)
+#Default:
+# maximum_object_size_in_memory 512 KB
+
+#  TAG: memory_cache_shared	on|off
+#Default:
+# "on" where supported if doing memory caching with multiple SMP workers.
+
+#  TAG: memory_cache_mode
+#Default:
+# Keep the most recently fetched objects in memory
+
+#  TAG: memory_replacement_policy
+#Default:
+# memory_replacement_policy lru
+
+# DISK CACHE OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: cache_replacement_policy
+#Default:
+# cache_replacement_policy lru
+
+#  TAG: minimum_object_size	(bytes)
+#Default:
+# no limit (0KB)
+
+#  TAG: maximum_object_size	(bytes)
+#Default:
+# maximum_object_size 4 MB
+maximum_object_size {{ squid_maximum_object_size }}
+
+#  TAG: cache_dir
+#		cache_dir Type Directory-Name Fs-specific-data [options]
+#	In SMP configurations, cache_dir must not precede the workers option
+#	and should use configuration macros or conditionals to give each
+#	worker interested in disk caching a dedicated cache directory.
+#
+#	====  The ufs store type  ====
+#
+#	"ufs" is the old well-known Squid storage format that has always
+#	been there.
+#
+#	Usage: (UFS)
+#		cache_dir ufs Directory-Name Mbytes L1 L2 [options]
+#	Usage: (aufs) - uses POSIX-threads to avoid blocking the main Squid process on disk I/O.
+#		cache_dir aufs Directory-Name Mbytes L1 L2 [options]
+#
+#	see argument descriptions under ufs above
+#Default:
+# No disk cache. Store cache ojects only in memory.
+#
+
+# Uncomment and adjust the following to add a disk cache directory.
+#cache_dir ufs /var/spool/squid 100 16 256
+{% if squid_cache_dir_size is defined %}
+cache_dir ufs /var/spool/squid {{ squid_cache_dir_size }} 16 256
+{% endif %}
+
+#  TAG: store_dir_select_algorithm
+#Default:
+# store_dir_select_algorithm least-load
+
+#  TAG: max_open_disk_fds
+#Default:
+# no limit (0)
+
+#  TAG: cache_swap_low	(percent, 0-100)
+#Default:
+# cache_swap_low 90
+
+#  TAG: cache_swap_high	(percent, 0-100)
+#Default:
+# cache_swap_high 95
+
+# LOGFILE OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: logformat
+#	logformat <name> <format specification>
+#	The default formats available (which do not need re-defining) are:
+#logformat squid      %ts.%03tu %6tr %>a %Ss/%03>Hs %<st %rm %ru %[un %Sh/%<a %mt
+#logformat common     %>a %[ui %[un [%tl] "%rm %ru HTTP/%rv" %>Hs %<st %Ss:%Sh
+#logformat combined   %>a %[ui %[un [%tl] "%rm %ru HTTP/%rv" %>Hs %<st "%{Referer}>h" "%{User-Agent}>h" %Ss:%Sh
+#logformat referrer   %ts.%03tu %>a %{Referer}>h %ru
+#logformat useragent  %>a [%tl] "%{User-Agent}>h"
+#Default:
+# The format definitions squid, common, combined, referrer, useragent are built in.
+
+#  TAG: access_log
+#	access_log <module>:<place> [option ...] [acl acl ...]
+#	access_log none [acl acl ...]
+#Default:
+# access_log daemon:/var/log/squid/access.log squid
+
+#  TAG: icap_log
+#logformat icap_squid %ts.%03tu %6icap::tr %>A %icap::to/%03icap::Hs %icap::<st %icap::rm %icap::ru %un -/%icap::<A -
+#Default:
+# none
+
+#  TAG: logfile_daemon
+#Default:
+# logfile_daemon /usr/lib/squid/log_file_daemon
+
+#  TAG: stats_collection	allow|deny acl acl...
+#Default:
+# Allow logging for all transactions.
+
+#  TAG: cache_store_log
+#	Example:
+#		cache_store_log stdio:/var/log/squid/store.log
+#		cache_store_log daemon:/var/log/squid/store.log
+#Default:
+# none
+
+#  TAG: cache_swap_state
+#Default:
+# Store the journal inside its cache_dir
+
+#  TAG: logfile_rotate
+#	Note2, for Debian/Linux the default of logfile_rotate is
+#	zero, since it includes external logfile-rotation methods.
+#Default:
+# logfile_rotate 0
+
+#  TAG: mime_table
+#Default:
+# mime_table /usr/share/squid/mime.conf
+
+#  TAG: log_mime_hdrs	on|off
+#Default:
+# log_mime_hdrs off
+
+#  TAG: pid_filename
+#Default:
+# pid_filename /var/run/squid.pid
+
+#  TAG: client_netmask
+#Default:
+# Log full client IP address
+
+#  TAG: strip_query_terms
+#Default:
+# strip_query_terms on
+
+#  TAG: buffered_logs	on|off
+#Default:
+# buffered_logs off
+
+#  TAG: netdb_filename
+#Default:
+# netdb_filename stdio:/var/log/squid/netdb.state
+
+# OPTIONS FOR TROUBLESHOOTING
+# -----------------------------------------------------------------------------
+
+#  TAG: cache_log
+#Default:
+# cache_log /var/log/squid/cache.log
+
+#  TAG: debug_options
+#Default:
+# Log all critical and important messages. (debug_options ALL,1)
+
+#  TAG: coredump_dir
+#Default:
+# Use the directory from where Squid was started.
+
+# Leave coredumps in the first cache dir
+coredump_dir /var/spool/squid
+
+# OPTIONS FOR FTP GATEWAYING
+# -----------------------------------------------------------------------------
+
+#  TAG: ftp_user
+#Default:
+# ftp_user Squid@
+
+#  TAG: ftp_passive
+#Default:
+# ftp_passive on
+
+#  TAG: ftp_epsv_all
+#Default:
+# ftp_epsv_all off
+
+#  TAG: ftp_epsv
+#Default:
+# none
+
+#  TAG: ftp_eprt
+#Default:
+# ftp_eprt on
+
+#  TAG: ftp_sanitycheck
+#Default:
+# ftp_sanitycheck on
+
+#  TAG: ftp_telnet_protocol
+#Default:
+# ftp_telnet_protocol on
+
+# OPTIONS FOR EXTERNAL SUPPORT PROGRAMS
+# -----------------------------------------------------------------------------
+
+#  TAG: diskd_program
+#Default:
+# diskd_program /usr/lib/squid/diskd
+
+#  TAG: unlinkd_program
+#Default:
+# unlinkd_program /usr/lib/squid/unlinkd
+
+#  TAG: pinger_program
+#Default:
+# pinger_program /usr/lib/squid/pinger
+
+#  TAG: pinger_enable
+#Default:
+# pinger_enable on
+
+# OPTIONS FOR URL REWRITING
+# -----------------------------------------------------------------------------
+
+#  TAG: url_rewrite_program
+#Default:
+# none
+
+#  TAG: url_rewrite_children
+#Default:
+# url_rewrite_children 20 startup=0 idle=1 concurrency=0
+
+#  TAG: url_rewrite_host_header
+#Default:
+# url_rewrite_host_header on
+
+#  TAG: url_rewrite_access
+#Default:
+# Allow, unless rules exist in squid.conf.
+
+#  TAG: url_rewrite_bypass
+#Default:
+# url_rewrite_bypass off
+
+#  TAG: url_rewrite_extras
+#Default:
+# url_rewrite_extras "%>a/%>A %un %>rm myip=%la myport=%lp"
+
+# OPTIONS FOR STORE ID
+# -----------------------------------------------------------------------------
+
+#  TAG: store_id_program
+#Default:
+# none
+
+#  TAG: store_id_extras
+#Default:
+# store_id_extras "%>a/%>A %un %>rm myip=%la myport=%lp"
+
+#  TAG: store_id_children
+#Default:
+# store_id_children 20 startup=0 idle=1 concurrency=0
+
+#  TAG: store_id_access
+#Default:
+# Allow, unless rules exist in squid.conf.
+
+#  TAG: store_id_bypass
+#Default:
+# store_id_bypass on
+
+# OPTIONS FOR TUNING THE CACHE
+# -----------------------------------------------------------------------------
+
+#  TAG: cache
+#Default:
+# By default, this directive is unused and has no effect.
+
+{% for cache in squid_cache_list %}
+cache {{ cache.rule }} {{ cache.acl }}
+{% endfor %}
+
+#  TAG: send_hit
+#Default:
+# By default, this directive is unused and has no effect.
+
+#  TAG: store_miss
+#Default:
+# By default, this directive is unused and has no effect.
+
+#  TAG: max_stale	time-units
+#Default:
+# max_stale 1 week
+
+#  TAG: refresh_pattern
+
+
+#
+# Add any of your own refresh_pattern entries above these.
+#
+refresh_pattern ^ftp:		1440	20%	10080
+refresh_pattern ^gopher:	1440	0%	1440
+refresh_pattern -i (/cgi-bin/|\?) 0	0%	0
+refresh_pattern .		0	20%	4320
+
+#  TAG: quick_abort_min	(KB)
+#Default:
+# quick_abort_min 16 KB
+
+#  TAG: quick_abort_max	(KB)
+#Default:
+# quick_abort_max 16 KB
+
+#  TAG: quick_abort_pct	(percent)
+#Default:
+# quick_abort_pct 95
+
+#  TAG: read_ahead_gap	buffer-size
+#Default:
+# read_ahead_gap 16 KB
+
+#  TAG: negative_ttl	time-units
+#Default:
+# negative_ttl 0 seconds
+
+#  TAG: positive_dns_ttl	time-units
+#Default:
+# positive_dns_ttl 6 hours
+
+#  TAG: negative_dns_ttl	time-units
+#Default:
+# negative_dns_ttl 1 minutes
+
+#  TAG: range_offset_limit	size [acl acl...]
+#Default:
+# none
+
+#  TAG: minimum_expiry_time	(seconds)
+#Default:
+# minimum_expiry_time 60 seconds
+
+#  TAG: store_avg_object_size	(bytes)
+#Default:
+# store_avg_object_size 13 KB
+
+#  TAG: store_objects_per_bucket
+#Default:
+# store_objects_per_bucket 20
+
+# HTTP OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: request_header_max_size	(KB)
+#Default:
+# request_header_max_size 64 KB
+
+#  TAG: reply_header_max_size	(KB)
+#Default:
+# reply_header_max_size 64 KB
+
+#  TAG: request_body_max_size	(bytes)
+#Default:
+# No limit. (0 KB)
+
+#  TAG: client_request_buffer_max_size	(bytes)
+#Default:
+# client_request_buffer_max_size 512 KB
+
+#  TAG: broken_posts
+#Example:
+# acl buggy_server url_regex ^http://....
+# broken_posts allow buggy_server
+#Default:
+# Obey RFC 2616.
+
+#  TAG: adaptation_uses_indirect_client	on|off
+#Default:
+# adaptation_uses_indirect_client on
+
+#  TAG: via	on|off
+#Default:
+# via on
+
+#  TAG: ie_refresh	on|off
+#Default:
+# ie_refresh off
+
+#  TAG: vary_ignore_expire	on|off
+#Default:
+# vary_ignore_expire off
+
+#  TAG: request_entities
+#Default:
+# request_entities off
+
+#  TAG: request_header_access
+#       Usage: request_header_access header_name allow|deny [!]aclname ...
+#
+#	WARNING: Doing this VIOLATES the HTTP standard.  Enabling
+#	this feature could make you liable for problems which it
+#	causes.
+#
+#	For example, to achieve the same behavior as the old
+#	'http_anonymizer standard' option, you should use:
+#
+#		request_header_access From deny all
+#		request_header_access Referer deny all
+#		request_header_access User-Agent deny all
+#
+#	Or, to reproduce the old 'http_anonymizer paranoid' feature
+#	you should use:
+#
+#		request_header_access Authorization allow all
+#		request_header_access Proxy-Authorization allow all
+#		request_header_access Cache-Control allow all
+#		request_header_access Content-Length allow all
+#		request_header_access Content-Type allow all
+#		request_header_access Date allow all
+#		request_header_access Host allow all
+#		request_header_access If-Modified-Since allow all
+#		request_header_access Pragma allow all
+#		request_header_access Accept allow all
+#		request_header_access Accept-Charset allow all
+#		request_header_access Accept-Encoding allow all
+#		request_header_access Accept-Language allow all
+#		request_header_access Connection allow all
+#		request_header_access All deny all
+#
+#	By default, all headers are allowed (no anonymizing is performed).
+#Default:
+# No limits.
+
+#  TAG: reply_header_access
+#	Usage: reply_header_access header_name allow|deny [!]aclname ...
+#
+#	WARNING: Doing this VIOLATES the HTTP standard.  Enabling
+#	this feature could make you liable for problems which it
+#	causes.
+#
+#	For example, to achieve the same behavior as the old
+#	'http_anonymizer standard' option, you should use:
+#
+#		reply_header_access Server deny all
+#		reply_header_access WWW-Authenticate deny all
+#		reply_header_access Link deny all
+#
+#	Or, to reproduce the old 'http_anonymizer paranoid' feature
+#	you should use:
+#
+#		reply_header_access Allow allow all
+#		reply_header_access WWW-Authenticate allow all
+#		reply_header_access Proxy-Authenticate allow all
+#		reply_header_access Cache-Control allow all
+#		reply_header_access Content-Encoding allow all
+#		reply_header_access Content-Length allow all
+#		reply_header_access Content-Type allow all
+#		reply_header_access Date allow all
+#		reply_header_access Expires allow all
+#		reply_header_access Last-Modified allow all
+#		reply_header_access Location allow all
+#		reply_header_access Pragma allow all
+#		reply_header_access Content-Language allow all
+#		reply_header_access Retry-After allow all
+#		reply_header_access Title allow all
+#		reply_header_access Content-Disposition allow all
+#		reply_header_access Connection allow all
+#		reply_header_access All deny all
+#
+#	HTTP request headers are controlled with the request_header_access directive.
+#
+#	By default, all headers are allowed (no anonymizing is
+#	performed).
+#Default:
+# No limits.
+
+#  TAG: request_header_replace
+#	Usage:   request_header_replace header_name message
+#	Example: request_header_replace User-Agent Nutscrape/1.0 (CP/M; 8-bit)
+#Default:
+# none
+
+#  TAG: reply_header_replace
+#        Usage:   reply_header_replace header_name message
+#        Example: reply_header_replace Server Foo/1.0
+#Default:
+# none
+
+#  TAG: request_header_add
+#	Usage:   request_header_add field-name field-value acl1 [acl2] ...
+#	Example: request_header_add X-Client-CA "CA=%ssl::>cert_issuer" all
+#Default:
+# none
+
+#  TAG: note
+#	This option used to log custom information about the master
+#	transaction. For example, an admin may configure Squid to log
+#	which "user group" the transaction belongs to, where "user group"
+#	will be determined based on a set of ACLs and not [just]
+#	authentication information.
+#	Values of key/value pairs can be logged using %{key}note macros:
+#
+#	    note key value acl ...
+#	    logformat myFormat ... %{key}note ...
+#Default:
+# none
+
+#  TAG: relaxed_header_parser	on|off|warn
+#Default:
+# relaxed_header_parser on
+
+#  TAG: collapsed_forwarding	(on|off)
+#Default:
+# collapsed_forwarding off
+
+# TIMEOUTS
+# -----------------------------------------------------------------------------
+
+#  TAG: forward_timeout	time-units
+#Default:
+# forward_timeout 4 minutes
+
+#  TAG: connect_timeout	time-units
+#Default:
+# connect_timeout 1 minute
+
+#  TAG: peer_connect_timeout	time-units
+#Default:
+# peer_connect_timeout 30 seconds
+
+#  TAG: read_timeout	time-units
+#Default:
+# read_timeout 15 minutes
+
+#  TAG: write_timeout	time-units
+#Default:
+# write_timeout 15 minutes
+
+#  TAG: request_timeout
+#Default:
+# request_timeout 5 minutes
+
+#  TAG: client_idle_pconn_timeout
+#Default:
+# client_idle_pconn_timeout 2 minutes
+
+#  TAG: ftp_client_idle_timeout
+#Default:
+# ftp_client_idle_timeout 30 minutes
+
+#  TAG: client_lifetime	time-units
+#Default:
+# client_lifetime 1 day
+
+#  TAG: half_closed_clients
+#Default:
+# half_closed_clients off
+
+#  TAG: server_idle_pconn_timeout
+#Default:
+# server_idle_pconn_timeout 1 minute
+
+#  TAG: ident_timeout
+#Default:
+# ident_timeout 10 seconds
+
+#  TAG: shutdown_lifetime	time-units
+#Default:
+# shutdown_lifetime 30 seconds
+
+# ADMINISTRATIVE PARAMETERS
+# -----------------------------------------------------------------------------
+
+#  TAG: cache_mgr
+#Default:
+# cache_mgr webmaster
+cache_mgr {{ squid_cache_mgr }}
+
+#  TAG: mail_from
+#Default:
+# none - default : 'squid@unique_hostname'
+
+#  TAG: mail_program
+#Default:
+# mail_program mail
+
+#  TAG: cache_effective_user
+#Default:
+# cache_effective_user proxy
+
+#  TAG: cache_effective_group
+#Default:
+# Use system group memberships of the cache_effective_user account
+
+#  TAG: httpd_suppress_version_string	on|off
+#Default:
+# httpd_suppress_version_string off
+
+#  TAG: visible_hostname
+#Default:
+# Automatically detect the system host name
+
+#  TAG: unique_hostname
+#Default:
+# Copy the value from visible_hostname
+
+#  TAG: hostname_aliases
+#Default:
+# none
+
+#  TAG: umask
+#Default:
+# umask 027
+
+# OPTIONS FOR THE CACHE REGISTRATION SERVICE
+# -----------------------------------------------------------------------------
+
+#  TAG: announce_period
+#	Example:
+#		announce_period 1 day
+#Default:
+# Announcement messages disabled.
+
+#  TAG: announce_host
+#Default:
+# announce_host tracker.ircache.net
+
+#  TAG: announce_file
+#Default:
+# none
+
+#  TAG: announce_port
+#Default:
+# announce_port 3131
+
+# HTTPD-ACCELERATOR OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: httpd_accel_surrogate_id
+#Default:
+# visible_hostname is used if no specific ID is set.
+
+#  TAG: http_accel_surrogate_remote	on|off
+#Default:
+# http_accel_surrogate_remote off
+
+#  TAG: esi_parser	libxml2|expat|custom
+#Default:
+# esi_parser custom
+
+# DELAY POOL PARAMETERS
+# -----------------------------------------------------------------------------
+
+#  TAG: delay_pools
+#Default:
+# delay_pools 0
+
+#  TAG: delay_class
+#Default:
+# none
+
+#  TAG: delay_access
+#Default:
+# Deny using the pool, unless allow rules exist in squid.conf for the pool.
+
+#  TAG: delay_parameters
+#Default:
+# none
+
+#  TAG: delay_initial_bucket_level	(percent, 0-100)
+#Default:
+# delay_initial_bucket_level 50
+
+# CLIENT DELAY POOL PARAMETERS
+# -----------------------------------------------------------------------------
+
+#  TAG: client_delay_pools
+#Default:
+# client_delay_pools 0
+
+#  TAG: client_delay_initial_bucket_level	(percent, 0-no_limit)
+#Default:
+# client_delay_initial_bucket_level 50
+
+#  TAG: client_delay_parameters
+#Default:
+# none
+
+#  TAG: client_delay_access
+#	    client_delay_access pool_ID allow|deny acl_name
+#	Example:
+#		client_delay_access 1 allow low_rate_network
+#		client_delay_access 2 allow vips_network
+#	See also client_delay_parameters and client_delay_pools.
+#Default:
+# Deny use of the pool, unless allow rules exist in squid.conf for the pool.
+
+# WCCPv1 AND WCCPv2 CONFIGURATION OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: wccp_router
+#Default:
+# WCCP disabled.
+
+#  TAG: wccp2_router
+#Default:
+# WCCPv2 disabled.
+
+#  TAG: wccp_version
+#Default:
+# wccp_version 4
+
+#  TAG: wccp2_rebuild_wait
+#Default:
+# wccp2_rebuild_wait on
+
+#  TAG: wccp2_forwarding_method
+#Default:
+# wccp2_forwarding_method gre
+
+#  TAG: wccp2_return_method
+#Default:
+# wccp2_return_method gre
+
+#  TAG: wccp2_assignment_method
+#Default:
+# wccp2_assignment_method hash
+
+#  TAG: wccp2_service
+#	Examples:
+#	wccp2_service standard 0	# for the 'web-cache' standard service
+#	wccp2_service dynamic 80	# a dynamic service type which will be
+#					# fleshed out with subsequent options.
+#	wccp2_service standard 0 password=foo
+#Default:
+# Use the 'web-cache' standard service. (standard 0)
+
+#  TAG: wccp2_service_info
+#	wccp2_service_info <id> protocol=<protocol> flags=<flag>,<flag>..
+#	    priority=<priority> ports=<port>,<port>..
+#	Example:
+#	wccp2_service_info 80 protocol=tcp flags=src_ip_hash,ports_source
+#	    priority=240 ports=80
+#Default:
+# none
+
+#  TAG: wccp2_weight
+#Default:
+# wccp2_weight 10000
+
+#  TAG: wccp_address
+#Default:
+# Address selected by the operating system.
+
+#  TAG: wccp2_address
+#Default:
+# Address selected by the operating system.
+
+# PERSISTENT CONNECTION HANDLING
+# -----------------------------------------------------------------------------
+#
+# Also see "pconn_timeout" in the TIMEOUTS section
+
+#  TAG: client_persistent_connections
+#Default:
+# client_persistent_connections on
+
+#  TAG: server_persistent_connections
+#Default:
+# server_persistent_connections on
+
+#  TAG: persistent_connection_after_error
+#Default:
+# persistent_connection_after_error on
+
+#  TAG: detect_broken_pconn
+#Default:
+# detect_broken_pconn off
+
+# CACHE DIGEST OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: digest_generation
+#Default:
+# digest_generation on
+
+#  TAG: digest_bits_per_entry
+#Default:
+# digest_bits_per_entry 5
+
+#  TAG: digest_rebuild_period	(seconds)
+#Default:
+# digest_rebuild_period 1 hour
+
+#  TAG: digest_rewrite_period	(seconds)
+#Default:
+# digest_rewrite_period 1 hour
+
+#  TAG: digest_swapout_chunk_size	(bytes)
+#Default:
+# digest_swapout_chunk_size 4096 bytes
+
+#  TAG: digest_rebuild_chunk_percentage	(percent, 0-100)
+#Default:
+# digest_rebuild_chunk_percentage 10
+
+# SNMP OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: snmp_port
+#	Example:
+#		snmp_port 3401
+#Default:
+# SNMP disabled.
+
+#  TAG: snmp_access
+#Example:
+# snmp_access allow snmppublic localhost
+# snmp_access deny all
+#Default:
+# Deny, unless rules exist in squid.conf.
+
+#  TAG: snmp_incoming_address
+#Default:
+# Accept SNMP packets from all machine interfaces.
+
+#  TAG: snmp_outgoing_address
+#Default:
+# Use snmp_incoming_address or an address selected by the operating system.
+
+# ICP OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: icp_port
+#	Example:
+#		icp_port 3130
+#Default:
+# ICP disabled.
+
+#  TAG: htcp_port
+#	Example:
+#		htcp_port 4827
+#Default:
+# HTCP disabled.
+
+#  TAG: log_icp_queries	on|off
+#Default:
+# log_icp_queries on
+
+#  TAG: udp_incoming_address
+#Default:
+# Accept packets from all machine interfaces.
+
+#  TAG: udp_outgoing_address
+#Default:
+# Use udp_incoming_address or an address selected by the operating system.
+
+#  TAG: icp_hit_stale	on|off
+#Default:
+# icp_hit_stale off
+
+#  TAG: minimum_direct_hops
+#Default:
+# minimum_direct_hops 4
+
+#  TAG: minimum_direct_rtt	(msec)
+#Default:
+# minimum_direct_rtt 400
+
+#  TAG: netdb_low
+#Default:
+# netdb_low 900
+
+#  TAG: netdb_high
+#Default:
+# netdb_high 1000
+
+#  TAG: netdb_ping_period
+#Default:
+# netdb_ping_period 5 minutes
+
+#  TAG: query_icmp	on|off
+#Default:
+# query_icmp off
+
+#  TAG: test_reachability	on|off
+#Default:
+# test_reachability off
+
+#  TAG: icp_query_timeout	(msec)
+#		icp_query_timeout 2000
+#Default:
+# Dynamic detection.
+
+#  TAG: maximum_icp_query_timeout	(msec)
+#Default:
+# maximum_icp_query_timeout 2000
+
+#  TAG: minimum_icp_query_timeout	(msec)
+#Default:
+# minimum_icp_query_timeout 5
+
+#  TAG: background_ping_rate	time-units
+#Default:
+# background_ping_rate 10 seconds
+
+# MULTICAST ICP OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: mcast_groups
+#	Usage: mcast_groups 239.128.16.128 224.0.1.20
+#Default:
+# none
+
+#  TAG: mcast_miss_addr
+#Default:
+# disabled.
+
+#  TAG: mcast_miss_ttl
+#Default:
+# mcast_miss_ttl 16
+
+#  TAG: mcast_miss_port
+#Default:
+# mcast_miss_port 3135
+
+#  TAG: mcast_miss_encode_key
+#Default:
+# mcast_miss_encode_key XXXXXXXXXXXXXXXX
+
+#  TAG: mcast_icp_query_timeout	(msec)
+#Default:
+# mcast_icp_query_timeout 2000
+
+# INTERNAL ICON OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: icon_directory
+#Default:
+# icon_directory /usr/share/squid/icons
+
+#  TAG: global_internal_static
+#Default:
+# global_internal_static on
+
+#  TAG: short_icon_urls
+#Default:
+# short_icon_urls on
+
+# ERROR PAGE OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: error_directory
+#Default:
+# Send error pages in the clients preferred language
+
+#  TAG: error_default_language
+#Default:
+# Generate English language pages.
+error_default_language {{ squid_error_default_language }}
+
+#  TAG: error_log_languages
+#Default:
+# error_log_languages on
+
+#  TAG: err_page_stylesheet
+#Default:
+# err_page_stylesheet /etc/squid/errorpage.css
+
+#  TAG: err_html_text
+#Default:
+# none
+
+#  TAG: email_err_data	on|off
+#Default:
+# email_err_data on
+
+#  TAG: deny_info
+
+#Default:
+# none
+
+# OPTIONS INFLUENCING REQUEST FORWARDING 
+# -----------------------------------------------------------------------------
+
+#  TAG: nonhierarchical_direct
+#Default:
+# nonhierarchical_direct on
+
+#  TAG: prefer_direct
+#Default:
+# prefer_direct off
+
+#  TAG: cache_miss_revalidate	on|off
+#Default:
+# cache_miss_revalidate on
+
+#  TAG: always_direct
+#Default:
+# Prevent any cache_peer being used for this request.
+{% for rule in squid_always_direct_rules %}
+always_direct {{ rule.permission }} {{ rule.aclname }}
+{% endfor %}
+
+#  TAG: never_direct
+#Default:
+# Allow DNS results to be used for this request.
+{% for rule in squid_never_direct_rules %}
+never_direct {{ rule.permission }} {{ rule.aclname }}
+{% endfor %}
+
+
+# ADVANCED NETWORKING OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: incoming_udp_average
+#Default:
+# incoming_udp_average 6
+
+#  TAG: incoming_tcp_average
+#Default:
+# incoming_tcp_average 4
+
+#  TAG: incoming_dns_average
+#Default:
+# incoming_dns_average 4
+
+#  TAG: min_udp_poll_cnt
+#Default:
+# min_udp_poll_cnt 8
+
+#  TAG: min_dns_poll_cnt
+#Default:
+# min_dns_poll_cnt 8
+
+#  TAG: min_tcp_poll_cnt
+#Default:
+# min_tcp_poll_cnt 8
+
+#  TAG: accept_filter
+#EXAMPLE:
+## FreeBSD
+#accept_filter httpready
+## Linux
+#accept_filter data
+#Default:
+# none
+
+#  TAG: client_ip_max_connections
+#Default:
+# No limit.
+
+#  TAG: tcp_recv_bufsize	(bytes)
+#Default:
+# Use operating system TCP defaults.
+
+# ICAP OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: icap_enable	on|off
+#Default:
+# icap_enable off
+
+#  TAG: icap_connect_timeout
+#Default:
+# none
+
+#  TAG: icap_io_timeout	time-units
+#Default:
+# Use read_timeout.
+
+#  TAG: icap_service_failure_limit	limit [in memory-depth time-units]
+#Default:
+# icap_service_failure_limit 10
+
+#  TAG: icap_service_revival_delay
+#Default:
+# icap_service_revival_delay 180
+
+#  TAG: icap_preview_enable	on|off
+#Example:
+#icap_preview_enable off
+#Default:
+# icap_preview_enable on
+
+#  TAG: icap_preview_size
+#Default:
+# No preview sent.
+
+#  TAG: icap_206_enable	on|off
+#	Example:
+#	    icap_206_enable off
+#Default:
+# icap_206_enable on
+
+#  TAG: icap_default_options_ttl
+#Default:
+# icap_default_options_ttl 60
+
+#  TAG: icap_persistent_connections	on|off
+#Default:
+# icap_persistent_connections on
+
+#  TAG: adaptation_send_client_ip	on|off
+#Default:
+# adaptation_send_client_ip off
+
+#  TAG: adaptation_send_username	on|off
+#Default:
+# adaptation_send_username off
+
+#  TAG: icap_client_username_header
+#Default:
+# icap_client_username_header X-Client-Username
+
+#  TAG: icap_client_username_encode	on|off
+#Default:
+# icap_client_username_encode off
+
+#  TAG: icap_service
+#Example:
+#icap_service svcBlocker reqmod_precache icap://icap1.mydomain.net:1344/reqmod bypass=0
+#icap_service svcLogger reqmod_precache icap://icap2.mydomain.net:1344/respmod routing=on
+#Default:
+# none
+
+#  TAG: icap_class
+#Default:
+# none
+
+#  TAG: icap_access
+#Default:
+# none
+
+# eCAP OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: ecap_enable	on|off
+#Default:
+# ecap_enable off
+
+#  TAG: ecap_service
+#Example:
+#ecap_service s1 reqmod_precache ecap://filters.R.us/leakDetector?on_error=block bypass=off
+#ecap_service s2 respmod_precache ecap://filters.R.us/virusFilter config=/etc/vf.cfg bypass=on
+#Default:
+# none
+
+#  TAG: loadable_modules
+#Example:
+#loadable_modules /usr/lib/MinimalAdapter.so
+#Default:
+# none
+
+# MESSAGE ADAPTATION OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: adaptation_service_set
+#Example:
+#adaptation_service_set svcBlocker urlFilterPrimary urlFilterBackup
+#adaptation service_set svcLogger loggerLocal loggerRemote
+#Default:
+# none
+
+#  TAG: adaptation_service_chain
+#Example:
+#adaptation_service_chain svcRequest requestLogger urlFilter leakDetector
+#Default:
+# none
+
+#  TAG: adaptation_access
+#Example:
+#adaptation_access service_1 allow all
+#Default:
+# Allow, unless rules exist in squid.conf.
+
+#  TAG: adaptation_service_iteration_limit
+#	See also: icap_service routing=1
+#Default:
+# adaptation_service_iteration_limit 16
+
+#  TAG: adaptation_masterx_shared_names
+#Example:
+## share authentication information among ICAP services
+#adaptation_masterx_shared_names X-Subscriber-ID
+#Default:
+# none
+
+#  TAG: adaptation_meta
+#Default:
+# none
+
+#  TAG: icap_retry
+#	See also: icap_retry_limit
+#Default:
+# icap_retry deny all
+
+#  TAG: icap_retry_limit
+#Default:
+# No retries are allowed.
+
+# DNS OPTIONS
+# -----------------------------------------------------------------------------
+
+#  TAG: check_hostnames
+#Default:
+# check_hostnames off
+
+#  TAG: allow_underscore
+#Default:
+# allow_underscore on
+
+#  TAG: dns_retransmit_interval
+#Default:
+# dns_retransmit_interval 5 seconds
+
+#  TAG: dns_timeout
+#Default:
+# dns_timeout 30 seconds
+
+#  TAG: dns_packet_max
+#Default:
+# EDNS disabled
+
+#  TAG: dns_defnames	on|off
+#Default:
+# Search for single-label domain names is disabled.
+
+#  TAG: dns_multicast_local	on|off
+#Default:
+# Search for .local and .arpa names is disabled.
+
+#  TAG: dns_nameservers
+#	Example: dns_nameservers 10.0.0.1 192.172.0.4
+#Default:
+# Use operating system definitions
+
+#  TAG: hosts_file
+#Default:
+# hosts_file /etc/hosts
+
+#  TAG: append_domain
+#Example:
+# append_domain .yourdomain.com
+#Default:
+# Use operating system definitions
+
+#  TAG: ignore_unknown_nameservers
+#Default:
+# ignore_unknown_nameservers on
+
+#  TAG: dns_v4_first
+#Default:
+# dns_v4_first off
+
+#  TAG: ipcache_size	(number of entries)
+#Default:
+# ipcache_size 1024
+
+#  TAG: ipcache_low	(percent)
+#Default:
+# ipcache_low 90
+
+#  TAG: ipcache_high	(percent)
+#	The size, low-, and high-water marks for the IP cache.
+#Default:
+# ipcache_high 95
+
+#  TAG: fqdncache_size	(number of entries)
+#Default:
+# fqdncache_size 1024
+
+# MISCELLANEOUS
+# -----------------------------------------------------------------------------
+
+#  TAG: configuration_includes_quoted_values	on|off
+#Default:
+# configuration_includes_quoted_values off
+
+#  TAG: memory_pools	on|off
+#Default:
+# memory_pools on
+
+#  TAG: memory_pools_limit	(bytes)
+#	Used only with memory_pools on:
+#	memory_pools_limit 50 MB
+#Default:
+# memory_pools_limit 5 MB
+
+#  TAG: forwarded_for	on|off|transparent|truncate|delete
+#	If set to "on", Squid will append your client's IP address
+#	in the HTTP requests it forwards. By default it looks like:
+#
+#		X-Forwarded-For: 192.1.2.3
+#
+#	If set to "off", it will appear as
+#
+#		X-Forwarded-For: unknown
+#
+#	If set to "transparent", Squid will not alter the
+#	X-Forwarded-For header in any way.
+#
+#	If set to "delete", Squid will delete the entire
+#	X-Forwarded-For header.
+#
+#	If set to "truncate", Squid will remove all existing
+#	X-Forwarded-For entries, and place the client IP as the sole entry.
+#Default:
+# forwarded_for on
+
+#  TAG: cachemgr_passwd
+#Example:
+# cachemgr_passwd secret shutdown
+# cachemgr_passwd lesssssssecret info stats/objects
+# cachemgr_passwd disable all
+#Default:
+# No password. Actions which require password are denied.
+
+#  TAG: client_db	on|off
+#Default:
+# client_db on
+
+#  TAG: refresh_all_ims	on|off
+#Default:
+# refresh_all_ims off
+
+#  TAG: reload_into_ims	on|off
+#Default:
+# reload_into_ims off
+
+#  TAG: connect_retries
+#Default:
+# Do not retry failed connections.
+
+#  TAG: retry_on_error
+#Default:
+# retry_on_error off
+
+#  TAG: as_whois_server
+#Default:
+# as_whois_server whois.ra.net
+
+#  TAG: offline_mode
+#Default:
+# offline_mode off
+
+#  TAG: uri_whitespace
+#Default:
+# uri_whitespace strip
+
+#  TAG: chroot
+#Default:
+# none
+
+#  TAG: balance_on_multiple_ip
+#Default:
+# balance_on_multiple_ip off
+
+#  TAG: pipeline_prefetch
+#Default:
+# Do not pre-parse pipelined requests. (off)
+
+#  TAG: high_response_time_warning	(msec)
+#Default:
+# disabled. (0)
+
+#  TAG: high_page_fault_warning
+#Default:
+# disabled. (0)
+
+#  TAG: high_memory_warning
+#Default:
+# disabled. (0 KB)
+
+#  TAG: sleep_after_fork	(microseconds)
+#Default:
+# sleep_after_fork 0
+
+#  TAG: windows_ipaddrchangemonitor	on|off
+#Default:
+# windows_ipaddrchangemonitor on
+
+#  TAG: eui_lookup
+#Default:
+# eui_lookup on
+
+#  TAG: max_filedescriptors
+#Default:
+# Use operating system limits set by ulimit.
+

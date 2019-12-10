@@ -1,0 +1,24 @@
+---
+# tasks file for squid
+
+- name: Install squid
+  package:
+    name: ["squid"]
+    state: present
+
+- name: Template squid configuration.
+  template:
+    src: squid.conf.j2
+    dest: /etc/squid/squid.conf
+    # owner: root
+    # group: root
+    # mode: 0640
+  notify:
+    - check squid configuration
+    - restart squid
+
+- name: Start and enable systemctl squid service
+  service:
+    name: squid
+    state: started
+    enabled: yes
